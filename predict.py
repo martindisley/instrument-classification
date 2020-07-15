@@ -9,7 +9,7 @@ import argparse
 import os
 import pandas as pd
 from tqdm import tqdm
-
+import librosa
 
 def make_prediction(args):
 
@@ -27,8 +27,13 @@ def make_prediction(args):
 
     for z, wav_fn in tqdm(enumerate(wav_paths), total=len(wav_paths)):
         rate, wav = downsample_mono(wav_fn, args.sr)
-        mask, env = envelope(wav, rate, threshold=args.threshold)
-        clean_wav = wav[mask]
+        #mask, env = envelope(wav, rate, threshold=args.threshold)
+        #clean_wav = wav[mask]
+        try:
+            clean_wav, index = librosa.effects.trim(wav, top_db=60)
+        except Exception:
+            print("failed (trim): " + src_fn.split('/')[-1])
+            continue
         step = int(args.sr*args.dt)
         batch = []
 
@@ -36,10 +41,11 @@ def make_prediction(args):
             sample = clean_wav[i:i+step]
             sample = sample.reshape(1,-1)
             if sample.shape[0] < step:
-                tmp = np.zeros(shape=(1,step), dtype=np.int16)
+                tmp = np.zeros(shape=(1,step), dtype=np.float32)
                 tmp[:,:sample.shape[1]] = sample.flatten()
                 sample = tmp
             batch.append(sample)
+
         X_batch = np.array(batch, dtype=np.float32)
         y_pred = model.predict(X_batch)
         y_mean = np.mean(y_pred, axis=0)
