@@ -194,7 +194,7 @@ def test_threshold(args):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Cleaning audio data')
-    parser.add_argument('--src_root', type=str, default='wavfiles-a',
+    parser.add_argument('--src_root', type=str, default='wavfiles',
                         help='directory of audio files in total duration')
     parser.add_argument('--dst_root', type=str, default='clean-a',
                         help='directory to put audio files split by delta_time')
