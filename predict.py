@@ -11,6 +11,7 @@ import pandas as pd
 from tqdm import tqdm
 import librosa
 
+
 def make_prediction(args):
 
     model = load_model(args.model_fn,
@@ -25,15 +26,25 @@ def make_prediction(args):
     y_true = le.fit_transform(labels)
     results = []
 
+    errors_df = pd.DataFrame(columns=('file', 'error'))
+
     for z, wav_fn in tqdm(enumerate(wav_paths), total=len(wav_paths)):
-        rate, wav = downsample_mono(wav_fn, args.sr)
-        #mask, env = envelope(wav, rate, threshold=args.threshold)
-        #clean_wav = wav[mask]
+        #load the audio file, continue if file is corrupt
+        try:
+            rate, wav = downsample_mono(wav_fn, args.sr)
+        except Exception:
+            print("failed (load): " + wav_fn.split('/')[-1])
+            errors_df = errors_df.append({'file': wav_fn, 'error': 'load'}, ignore_index=True)
+            continue
+        #trim the silence continue of error is encountered
         try:
             clean_wav, index = librosa.effects.trim(wav, top_db=60)
         except Exception:
             print("failed (trim): " + src_fn.split('/')[-1])
+            errors_df = errors_df.append({'file': wav_fn, 'error': 'trim'}, ignore_index=True)
             continue
+
+        #calculate stetp size in samples
         step = int(args.sr*args.dt)
         batch = []
 
@@ -52,9 +63,12 @@ def make_prediction(args):
         y_pred = np.argmax(y_mean)
         real_class = os.path.dirname(wav_fn).split('/')[-1]
         print('Actual class: {}, Predicted class: {}'.format(real_class, classes[y_pred]))
+        if classes[y_pred] != real_class:
+            errors_df = errors_df.append({'file': wav_fn, 'error': 'prediction'}, ignore_index=True)
         results.append(y_mean)
 
     np.save(os.path.join('logs', args.pred_fn), np.array(results))
+    errors_df.to_csv('errors.csv')
 
 
 if __name__ == '__main__':
